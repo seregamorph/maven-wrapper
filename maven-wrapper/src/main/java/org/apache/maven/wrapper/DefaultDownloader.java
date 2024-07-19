@@ -22,7 +22,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.net.Authenticator;
+import java.net.InetSocketAddress;
 import java.net.PasswordAuthentication;
+import java.net.Proxy;
 import java.net.URI;
 import java.net.URL;
 import java.net.URLConnection;
@@ -88,7 +90,14 @@ public class DefaultDownloader implements Downloader {
 
     private void downloadInternal(URI address, Path destination) throws IOException {
         URL url = address.toURL();
-        URLConnection conn = url.openConnection();
+        Proxy proxy = getProxy();
+        URLConnection conn;
+        if (proxy == null) {
+            conn = url.openConnection();
+        } else {
+            Logger.info("Using proxy " + proxy);
+            conn = url.openConnection(proxy);
+        }
         addBasicAuthentication(address, conn);
         final String userAgentValue = calculateUserAgent();
         conn.setRequestProperty("User-Agent", userAgentValue);
@@ -103,6 +112,15 @@ public class DefaultDownloader implements Downloader {
         } finally {
             Files.deleteIfExists(temp);
         }
+    }
+
+    private static Proxy getProxy() {
+        String proxyHost = System.getProperty("https.proxyHost");
+        String proxyPort = System.getProperty("https.proxyPort");
+        if (proxyHost == null || proxyPort == null || proxyHost.isEmpty() || proxyPort.isEmpty()) {
+            return null;
+        }
+        return new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, Integer.parseInt(proxyPort)));
     }
 
     private void addBasicAuthentication(URI address, URLConnection connection) {
